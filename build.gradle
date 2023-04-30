@@ -1,0 +1,33 @@
+plugins {
+    id 'java'
+    id 'idea'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.0.13'
+}
+
+group 'com.wisecoders'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:6.5.0.202303070854-r' // GIT in DbSchema
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.ssh.jsch:6.5.0.202303070854-r'
+    implementation "org.controlsfx:controlsfx:11.1.2"  // JavaFx related components : http://fxexperience.com/controlsfx/
+}
+
+test {
+    useJUnitPlatform()
+}
+
+mainClassName = 'com.wisecoders.FxGitExplorerApp'
+
+javafx {
+    version = "20"
+    modules = [ 'javafx.base', 'javafx.swing', 'javafx.graphics', 'javafx.controls', 'javafx.fxml', 'javafx.media', 'javafx.web' ]
+}
+
