@@ -111,11 +111,10 @@ public class FxGitConflictsDialog extends Dialog$ {
 
     private void acceptMine(String filePath ){
         try {
-            //TODO: How should I fetch and commit only that particular file?
             git.fetch().setRemote("origin").setCredentialsProvider( git.getCredentialsProvider( getDialogScene() )).call();
             git.authenticationSucceeded();
-            //TODO: Is it correct to do only git.add()?
             git.add().addFilepattern( filePath).call();
+            git.commit().setMessage("Conflict solved - accept mine.").setAll(false).setOnly(filePath).call();
             rx.showInformation(getDialogScene(), "Done");
         } catch (Exception ex ){
             rx.showError( getDialogScene(), ex );
@@ -132,7 +131,7 @@ public class FxGitConflictsDialog extends Dialog$ {
             final ObjectId originHeadId = git.getRepository().resolve("origin/" + git.getRepository().getBranch() + "/" + filePath);
             merger.setBase(headId);
             if (merger.merge(originHeadId, headId)) {
-                //TODO: Should I check also merger.getUnmergedPaths()
+                //TODO: Should I check also merger.getUnmergedPaths() ?
                 if ( merger.getFailingPaths()!= null && !merger.getFailingPaths().isEmpty() ){
                     new FxGitConflictsDialog(fxGitExplorer, git, new ArrayList<>(merger.getFailingPaths().keySet()) ).showDialog();
                 }

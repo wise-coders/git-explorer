@@ -21,10 +21,13 @@ import javafx.util.Duration;
 import org.eclipse.jgit.api.CreateBranchCommand;
 import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.PullResult;
+import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.CheckoutConflictException;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.merge.ResolveMerger;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.submodule.SubmoduleWalk;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -99,7 +102,7 @@ public class FxGitExplorer extends Scene {
 
         new FxGitFileChooser(this).showDialog().ifPresent(val-> {
             gitFile = val;
-            rx.executeTask( reloadRevisions() );
+            rx.executeTask( createReloadRevisionsTask() );
         });
 
     }
@@ -110,9 +113,9 @@ public class FxGitExplorer extends Scene {
     public Node createContentPane() {
 
 
-        final SplitMenuButton reloadRevisionsButton = rx.createSplitMenuButton("reloadRevisions", true );
+        final SplitMenuButton reloadRevisionsButton = rx.createSplitMenuButton("createReloadRevisionsTask", true );
         reloadRevisionsButton.getItems().add( rx.checkMenuItem("showAllRevisions"));
-        reloadRevisionsButton.getItems().addAll( rx.menuItems( Rx.SEPARATOR, "reloadRevisions"));
+        reloadRevisionsButton.getItems().addAll( rx.menuItems( Rx.SEPARATOR, "createReloadRevisionsTask"));
 
 
         final HBox$ toolBar = new HBox$().withSmallGap().withChildren(
@@ -140,6 +143,22 @@ public class FxGitExplorer extends Scene {
 
     @Action(enabledProperty = "flagHasRepository")
     public Task gitPull() {
+        try {
+            git.fetch().setRemote("origin").setCredentialsProvider( git.getCredentialsProvider( getDialogScene()) ).call();
+            final Status status = git.status().setIgnoreSubmodules(SubmoduleWalk.IgnoreSubmoduleMode.NONE).call();
+            if ( status.getUncommittedChanges() != null && !status.getUncommittedChanges().isEmpty()) {
+                final FxGitCommitDialog commitDialog = new FxGitCommitDialog( this, git );
+                commitDialog.setHeaderText(rx.getText("repositoryHasUncommittedChanges"));
+                commitDialog.showDialog();
+                return createReloadRevisionsTask();
+            } else if ( status.getConflicting() != null && !status.getConflicting().isEmpty() ) {
+                new FxGitConflictsDialog(this, git, new ArrayList<>(status.getConflicting()));
+                return createReloadRevisionsTask();
+            }
+        } catch (GitAPIException ex ){
+            rx.showError( getDialogScene(), ex );
+        }
+
         final FxGitCommitDialog commitDialog = new FxGitCommitDialog( this, git );
         if ( commitDialog.hasUncommittedChanges() ) {
             commitDialog.setHeaderText(rx.getText("repositoryHasUncommittedChanges"));
@@ -208,9 +227,9 @@ public class FxGitExplorer extends Scene {
     }
 
     @Action(enabledProperty = "flagHasRepository")
-    public void gitCommit() {
+    public Task gitCommit() {
         new FxGitCommitDialog(this, git).showDialog();
-        Platform.runLater(()-> rx.executeTask( reloadRevisions() ));
+        return createReloadRevisionsTask();
     }
 
 
@@ -276,11 +295,11 @@ public class FxGitExplorer extends Scene {
     @Action( selectedProperty = "flagIsShowAllRevisions")
     public Task showAllRevisions() {
         this.showAllRevisions = !showAllRevisions;
-        return reloadRevisions();
+        return createReloadRevisionsTask();
     }
 
     @Action
-    public Task reloadRevisions() {
+    public Task createReloadRevisionsTask() {
             stage.setTitle("GIT Dialog - " + gitFile);
         return new ListRevisionsTask();
     }
