@@ -159,71 +159,60 @@ public class FxGitExplorer extends Scene {
             rx.showError( getDialogScene(), ex );
         }
 
-        final FxGitCommitDialog commitDialog = new FxGitCommitDialog( this, git );
-        if ( commitDialog.hasUncommittedChanges() ) {
-            commitDialog.setHeaderText(rx.getText("repositoryHasUncommittedChanges"));
-            commitDialog.showDialog();
-            return null;
-        } else if ( commitDialog.hasConflictingChanges() ){
-            new FxGitConflictsDialog( this, git, commitDialog.getConflicts() );
-            return null;
+        return new Task<PullResult>() {
+            @Override
+            protected PullResult call() throws Exception {
+                updateMessage("Running GIT pull...");
+                installFileWatcher();
+                return git.pull().
+                        setRemote("origin").
+                        setRemoteBranchName(git.getRepository().getBranch()).
+                        setCredentialsProvider(git.getCredentialsProvider(getDialogScene())).
+                        call();
+            }
 
-        } else {
-            return new Task<PullResult>() {
-                @Override
-                protected PullResult call() throws Exception {
-                    updateMessage("Running GIT pull...");
-                    installFileWatcher();
-                    return git.pull().
-                            setRemote("origin").
-                            setRemoteBranchName(git.getRepository().getBranch()).
-                            setCredentialsProvider(git.getCredentialsProvider(getDialogScene())).
-                            call();
-                }
-
-                @Override
-                protected void succeeded() {
-                    git.authenticationSucceeded();
-                    uninstallFileWatcher();
-                    final MergeResult mergeResult = getValue().getMergeResult();
-                    if (mergeResult != null) {
-                        if (mergeResult.getConflicts() != null && !mergeResult.getConflicts().isEmpty()) {
-                            new FxGitConflictsDialog(FxGitExplorer.this, git, new ArrayList<>(mergeResult.getConflicts().keySet())).showDialog();
-                        } else if (mergeResult.getMergeStatus().isSuccessful()) {
-                            rx.showInformation(FxGitExplorer.this, mergeResult.toString());
-                        } else {
-                            // throw error for uncommitted changes.
-                            final StringBuilder sb = new StringBuilder();
-                            // This can happen if there are uncommitted changes and the pull runs
-                            for (Map.Entry<String, ResolveMerger.MergeFailureReason> entry : mergeResult.getFailingPaths().entrySet()) {
-                                String reason = entry.getValue().toString();
-                                if (reason.contains("DIRTY_WORKTREE")) {
-                                    reason = "has un-committed changes. " + reason;
-                                }
-                                sb.append(entry.getKey()).append(" ").append(reason).append("\n\n");
-                            }
-                            sb.append(mergeResult);
-                            rx.showError(FxGitExplorer.this, sb.toString());
-                        }
-                    }
-                }
-
-                @Override
-                protected void failed() {
-                    uninstallFileWatcher();
-                    if (getException() instanceof CheckoutConflictException) {
-                        CheckoutConflictException ex = (CheckoutConflictException) getException();
-                        new FxGitConflictsDialog(FxGitExplorer.this, git, ex.getConflictingPaths()).showDialog();
+            @Override
+            protected void succeeded() {
+                git.authenticationSucceeded();
+                uninstallFileWatcher();
+                final MergeResult mergeResult = getValue().getMergeResult();
+                if (mergeResult != null) {
+                    if (mergeResult.getConflicts() != null && !mergeResult.getConflicts().isEmpty()) {
+                        new FxGitConflictsDialog(FxGitExplorer.this, git, new ArrayList<>(mergeResult.getConflicts().keySet())).showDialog();
+                    } else if (mergeResult.getMergeStatus().isSuccessful()) {
+                        rx.showInformation(FxGitExplorer.this, mergeResult.toString());
                     } else {
-                        String message = getException().getLocalizedMessage();
-                        if (message.contains("DIRTY_WORKTREE")) {
-                            message = "Your repository contains un-committed changes.\n" + message;
+                        // throw error for uncommitted changes.
+                        final StringBuilder sb = new StringBuilder();
+                        // This can happen if there are uncommitted changes and the pull runs
+                        for (Map.Entry<String, ResolveMerger.MergeFailureReason> entry : mergeResult.getFailingPaths().entrySet()) {
+                            String reason = entry.getValue().toString();
+                            if (reason.contains("DIRTY_WORKTREE")) {
+                                reason = "has un-committed changes. " + reason;
+                            }
+                            sb.append(entry.getKey()).append(" ").append(reason).append("\n\n");
                         }
-                        rx.showError(FxGitExplorer.this, message, getException());
+                        sb.append(mergeResult);
+                        rx.showError(FxGitExplorer.this, sb.toString());
                     }
                 }
-            };
-        }
+            }
+
+            @Override
+            protected void failed() {
+                uninstallFileWatcher();
+                if (getException() instanceof CheckoutConflictException) {
+                    CheckoutConflictException ex = (CheckoutConflictException) getException();
+                    new FxGitConflictsDialog(FxGitExplorer.this, git, ex.getConflictingPaths()).showDialog();
+                } else {
+                    String message = getException().getLocalizedMessage();
+                    if (message.contains("DIRTY_WORKTREE")) {
+                        message = "Your repository contains un-committed changes.\n" + message;
+                    }
+                    rx.showError(FxGitExplorer.this, message, getException());
+                }
+            }
+        };
     }
 
     @Action(enabledProperty = "flagHasRepository")
@@ -300,7 +289,7 @@ public class FxGitExplorer extends Scene {
 
     @Action
     public Task createReloadRevisionsTask() {
-            stage.setTitle("GIT Dialog - " + gitFile);
+        stage.setTitle("GIT Dialog - " + gitFile);
         return new ListRevisionsTask();
     }
 
