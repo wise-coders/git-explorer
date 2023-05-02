@@ -183,12 +183,8 @@ public class FxGitCommitDialog extends Dialog$ {
 
             @Override
             protected void failed() {
-                if ( getException() instanceof GitMergeConflictException){
-                    GitMergeConflictException cke = (GitMergeConflictException) getException();
-                    new FxGitConflictsDialog(fxGitExplorer, git, new ArrayList<>( cke.mergeResult.getConflicts().keySet() ) ).showDialog();
-                } else {
-                    rx.showError(getDialogScene(), getException());
-                }
+                rx.showError(getDialogScene(), getException());
+
             }
         };
     }

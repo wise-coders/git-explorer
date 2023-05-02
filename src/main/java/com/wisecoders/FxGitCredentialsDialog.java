@@ -80,17 +80,20 @@ public class FxGitCredentialsDialog extends ButtonDialog$ {
             if ( item instanceof CredentialItem.StringType){
                 String value = ((TextField) control).getText();
                 ((CredentialItem.StringType) item).setValue(value);
-                pref.put( "git"+item.getPromptText(), remember ? value : null );
+                if ( remember ) pref.put( "git"+item.getPromptText(), value );
+                else pref.remove("git"+item.getPromptText());
             } else if ( item instanceof CredentialItem.CharArrayType ){
                 String value = ((PasswordField) control).getText();
                 if ( value != null ) {
                     ((CredentialItem.CharArrayType) item).setValue(value.toCharArray());
-                    pref.put("git" + item.getPromptText(), remember ? value : null);
+                    if ( remember ) pref.put("git" + item.getPromptText(), value );
+                    else pref.remove("git" + item.getPromptText());
                 }
             } else if ( item instanceof CredentialItem.YesNoType){
                 boolean selected = ((RadioButton) control).isSelected();
                 ((CredentialItem.YesNoType) item).setValue(selected);
-                pref.putBoolean( "gitBool"+item.getPromptText(), remember && selected);
+                if ( remember ) pref.putBoolean( "gitBool"+item.getPromptText(), selected);
+                else pref.remove( "gitBool"+item.getPromptText() );
             }
         }
         return true;
