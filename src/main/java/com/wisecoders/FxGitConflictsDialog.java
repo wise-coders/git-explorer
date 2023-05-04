@@ -10,17 +10,11 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.merge.MergeStrategy;
-import org.eclipse.jgit.merge.ResolveMerger;
+import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.treewalk.FileTreeIterator;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.List;
 
 public class FxGitConflictsDialog extends Dialog$ {
@@ -69,11 +63,11 @@ public class FxGitConflictsDialog extends Dialog$ {
                         withChildren(new Label(item), new HGrowBox$());
                 setGraphic(box);
 
-                if ( item.endsWith(".dbs")) {
-                    final Button mergeButton = new Button(rx.getText("sync"));
-                    mergeButton.setOnAction(ev -> syncModelWithOrigin( item ));
-                    box.getChildren().add(mergeButton);
-                }
+
+                final Button mergeButton = new Button(rx.getText("sync"));
+                mergeButton.setOnAction(ev -> syncModelWithOrigin( item ));
+                box.getChildren().add(mergeButton);
+
 
                 final Button acceptYoursButton = new Button(rx.getText("acceptYours"));
                 acceptYoursButton.setOnAction(ev -> acceptMine(item));
@@ -94,53 +88,68 @@ public class FxGitConflictsDialog extends Dialog$ {
             final String originProject = git.loadProjectFromRevision( filePath, latestCommit);
 
             if ( filePath.equals( git.getPath( fxGitExplorer.getGitFile()) )){
-                new FxGitSynchronizationDialog( fxGitExplorer, "Origin", originProject, "Local", fxGitExplorer.getLocalFileContent() ).
+                // get the local changes to show on right side
+                byte[] localFileContent = getDesiredFileContent("HEAD:" + filePath);
+                String contentOfLocalFile = new String(localFileContent, StandardCharsets.UTF_8);
+
+                new FxGitSynchronizationDialog( fxGitExplorer, "Origin", originProject, "Local", contentOfLocalFile ).
                         showDialog().ifPresent( result -> {
                             try {
-                                Files.writeString( fxGitExplorer.getGitFile().toPath(), result, StandardOpenOption.WRITE );
+                                Files.write(git.getRepository().getWorkTree().toPath().resolve(filePath), result.getBytes(StandardCharsets.UTF_8));
                             } catch ( IOException err){
                                 rx.showError( getDialogScene(), err );
                             }
                         });
             }
-            git.add().addFilepattern( filePath ).call();
-        } catch (Exception ex ){
-            rx.showError( getDialogScene(), ex );
-        }
-    }
-
-    private void acceptMine(String filePath ){
-        try {
-            git.fetch().setRemote("origin").setCredentialsProvider( git.getCredentialsProvider( getDialogScene() )).call();
             git.authenticationSucceeded();
-            git.add().addFilepattern( filePath).call();
-            git.commit().setMessage("Conflict solved - accept mine.").setAll(false).setOnly(filePath).call();
+            git.add().addFilepattern(filePath).call();
+            git.commit().setMessage("Conflict resolved - Syncing mine and origin").call();
             rx.showInformation(getDialogScene(), "Done");
         } catch (Exception ex ){
             rx.showError( getDialogScene(), ex );
         }
     }
 
+        private void acceptMine(String filePath ){
+            try {
+                //complete local content here
+                byte[] localFileContent = getDesiredFileContent("HEAD:" + filePath);
+
+                //writes the local content in file
+                Files.write(git.getRepository().getWorkTree().toPath().resolve(filePath), localFileContent);
+
+                git.authenticationSucceeded();
+                git.add().addFilepattern(filePath).call();
+                git.commit().setMessage("Conflict resolved - Accepted mine").call();
+                rx.showInformation(getDialogScene(), "Done");
+            } catch (Exception ex ){
+                rx.showError( getDialogScene(), ex );
+            }
+        }
+
 
     private void acceptTheirs( String filePath ) {
         try {
-            fxGitExplorer.installFileWatcher();
-            final ResolveMerger merger = (ResolveMerger) MergeStrategy.THEIRS.newMerger(git.getRepository(), true);
-            merger.setWorkingTreeIterator(new FileTreeIterator(git.getRepository()));
-            final ObjectId headId = git.getRepository().resolve("HEAD");
-            final ObjectId originHeadId = git.getRepository().resolve("origin/" + git.getRepository().getBranch() + "/" + filePath);
-            merger.setBase(headId);
-            if (merger.merge(originHeadId, headId)) {
-                //TODO: Should I check also merger.getUnmergedPaths() ?
-                if ( merger.getFailingPaths()!= null && !merger.getFailingPaths().isEmpty() ){
-                    new FxGitConflictsDialog(fxGitExplorer, git, new ArrayList<>(merger.getFailingPaths().keySet()) ).showDialog();
-                }
-            }
-            git.add().addFilepattern( filePath).call();
-            fxGitExplorer.uninstallFileWatcher();
+            //complete origin content here
+            byte[] originFileContent = getDesiredFileContent("origin/" + git.getRepository().getBranch() +":"  + filePath);
+
+            //writes the origin content in file
+            Files.write(git.getRepository().getWorkTree().toPath().resolve(filePath), originFileContent);
+
+            git.authenticationSucceeded();
+            git.add().addFilepattern(filePath).call();
+            git.commit().setMessage("Conflict resolved - Accepted theirs").call();
+            rx.showInformation(getDialogScene(), "Done");
+
         } catch ( Exception ex ){
             rx.showError( getDialogScene(), ex );
         }
+    }
+
+    private byte[] getDesiredFileContent(String completeFilePath) throws IOException {
+        ObjectId originId = git.getRepository().resolve(completeFilePath);
+        ObjectLoader originLoader = git.getRepository().open(originId);
+        return originLoader.getBytes();
     }
 
     @Action

@@ -15,6 +15,7 @@ repositories {
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    implementation 'commons-io:commons-io:2.11.0'
     implementation 'org.eclipse.jgit:org.eclipse.jgit:6.5.0.202303070854-r' // GIT in DbSchema
     implementation 'org.eclipse.jgit:org.eclipse.jgit.ssh.jsch:6.5.0.202303070854-r'
     implementation "org.controlsfx:controlsfx:11.1.2"  // JavaFx related components : http://fxexperience.com/controlsfx/
