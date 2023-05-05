@@ -152,7 +152,7 @@ public class FxGitExplorer extends Scene {
                 commitDialog.showDialog();
                 return createReloadRevisionsTask();
             } else if ( status.getConflicting() != null && !status.getConflicting().isEmpty() ) {
-                new FxGitConflictsDialog(this, git, new ArrayList<>(status.getConflicting()));
+                new FxGitConflictsDialog(this, git, new ArrayList<>(status.getConflicting())).showDialog();
                 return createReloadRevisionsTask();
             }
         } catch (GitAPIException ex ){
